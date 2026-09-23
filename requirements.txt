@@ -1,0 +1,2 @@
+spotipy==2.26.0
+yandex-music==3.0.0

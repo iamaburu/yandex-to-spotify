@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Подробная инструкция / Guide
+    url: https://github.com/iamaburu/yandex-to-spotify/blob/main/docs/GUIDE.ru.md#8-частые-проблемы
+    about: Сначала проверьте раздел «Частые проблемы» / Check troubleshooting first

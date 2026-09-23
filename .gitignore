@@ -1,0 +1,14 @@
+# секреты и личные данные
+.env
+data/
+*.log
+
+# окружения и сборка
+.venv/
+__pycache__/
+node_modules/
+dist/
+build/
+.DS_Store
+.spotify_token
+.cache*
