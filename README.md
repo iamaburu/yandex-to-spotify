@@ -9,15 +9,18 @@
 - **Keeps the order.** Your newest Yandex likes end up at the top in Spotify.
 - **Safe to re-run.** Tracks you already have are skipped, and an interrupted transfer continues where it stopped. Run it again later to move new likes.
 - **Undo.** One command removes everything the program added.
-- **Private.** Your tokens stay on your computer. The code is open.
+- **Browser or terminal.** Use a web interface with tabs, lists and search, or the step-by-step wizard in the terminal.
+- **Private.** Your tokens stay on your computer, and the web interface is reachable only from it. The code is open.
 
 > The program's interface is in Russian.
 
 ## Quick start
 
 1. [Download the latest release](https://github.com/iamaburu/yandex-to-spotify/releases/latest) (**Source code (zip)**) and unzip it.
-2. Double-click **`start.command`** on macOS or **`start.bat`** on Windows. On Linux, run `./start.sh`.
-3. Follow the wizard. It opens every page you need and checks everything you paste.
+2. Double-click:
+   - **`start-web.command`** (macOS) / **`start-web.bat`** (Windows) / `./start-web.sh` (Linux) to work **in the browser**;
+   - or **`start.command`** / **`start.bat`** / `./start.sh` for the step-by-step wizard **in the terminal**.
+3. Follow the instructions. The program opens every page you need and checks everything you paste.
 
 You need Python 3.9+. On macOS the wizard tells you how to install it if it is missing.
 On Windows, get it from [python.org](https://www.python.org/downloads/) and tick **Add python.exe to PATH**.
@@ -37,6 +40,7 @@ Every step is also available as a separate command:
 | command | what it does |
 |---|---|
 | *(none)* | step-by-step wizard |
+| `web [--no-browser]` | web interface in the browser |
 | `setup` | enter Yandex and Spotify credentials |
 | `check` | verify access to both services |
 | `export` | export Yandex likes → `data/yandex_likes.json` |

@@ -25,6 +25,8 @@ LIKES_FILE = DATA / "yandex_likes.json"
 MATCH_CACHE = DATA / "matches.json"
 REPORT_FILE = DATA / "report.csv"
 LIKED_LOG = DATA / "liked.json"
+SPOTIFY_TOKEN_FILE = DATA / ".spotify_token"
+VERSION = "0.2.0"
 
 REPORT_FIELDS = [
     "status", "yandex_artist", "yandex_title", "spotify_artist", "spotify_title",
@@ -90,20 +92,33 @@ def yandex_client(env):
                         f"Получите новый: {LAUNCHER} setup")
 
 
-def spotify_client(env):
-    import spotipy
+def spotify_auth(env, open_browser=True):
     from spotipy.oauth2 import SpotifyOAuth
     DATA.mkdir(exist_ok=True)
-    auth = SpotifyOAuth(
+    return SpotifyOAuth(
         client_id=require(env, "SPOTIFY_CLIENT_ID"),
         client_secret=require(env, "SPOTIFY_CLIENT_SECRET"),
         redirect_uri=env.get("SPOTIFY_REDIRECT_URI") or REDIRECT_URI,
         # user-read-private нужен для поиска с market=from_token (регион аккаунта)
         scope="user-library-read user-library-modify user-read-private",
-        cache_path=str(DATA / ".spotify_token"),
-        open_browser=True,
+        cache_path=str(SPOTIFY_TOKEN_FILE),
+        open_browser=open_browser,
     )
+
+
+def spotify_client(env, auth=None):
+    import spotipy
+    auth = auth or spotify_auth(env)
     return spotipy.Spotify(auth_manager=auth, retries=5, status_retries=5, backoff_factor=1)
+
+
+def check_spotify_keys(client_id, client_secret):
+    """Проверяет формат ключей Spotify. Возвращает текст ошибки или None."""
+    for value, label in ((client_id, "Client ID"), (client_secret, "Client secret")):
+        if not re.fullmatch(r"[0-9a-fA-F]{32}", value):
+            return (f"{label} не похож на ключ: он состоит из 32 символов 0-9 и a-f. "
+                    "Скопируйте ещё раз.")
+    return None
 
 
 # ---------- диалог с пользователем ----------
@@ -238,7 +253,7 @@ def cmd_setup(env, args):
         for key, label in (("SPOTIFY_CLIENT_ID", "Client ID"), ("SPOTIFY_CLIENT_SECRET", "Client secret")):
             while True:
                 value = ask(f"   {label}: ").replace(" ", "")
-                if re.fullmatch(r"[0-9a-fA-F]{32}", value):
+                if not check_spotify_keys(value, value):
                     env[key] = value
                     break
                 print("   Это не похоже на ключ: он состоит из 32 символов 0-9 и a-f. Скопируйте ещё раз.")
@@ -261,17 +276,27 @@ def cmd_check(env, args):
 
 
 def cmd_export(env, args):
+    count = export_likes(env, lambda n, total: print(
+        f"Лайков в Яндекс.Музыке: {total}. Загружаю данные о треках…" if n == 0 else f"  {n}/{total}"))
+    print(f"✓ Выгружено треков: {count}")
+    return count
+
+
+def export_likes(env, progress=None):
+    """Выгружает лайки Яндекса в LIKES_FILE. progress(n, total) — ход загрузки."""
     ya = yandex_client(env)
     likes = ya.users_likes_tracks()
     shorts = list(likes.tracks) if likes else []
-    print(f"Лайков в Яндекс.Музыке: {len(shorts)}. Загружаю данные о треках…")
+    if progress:
+        progress(0, len(shorts))
     liked_at = {str(s.id): s.timestamp for s in shorts}
     ids = [s.track_id for s in shorts]
     full = {}
     for i in range(0, len(ids), 200):
         for t in ya.tracks(ids[i:i + 200]):
             full[str(t.id)] = t
-        print(f"  {min(i + 200, len(ids))}/{len(ids)}")
+        if progress:
+            progress(min(i + 200, len(ids)), len(ids))
     result = []
     for s in shorts:  # порядок Яндекса: сначала самые новые лайки
         t = full.get(str(s.id))
@@ -289,7 +314,6 @@ def cmd_export(env, args):
         })
     DATA.mkdir(exist_ok=True)
     LIKES_FILE.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"✓ Выгружено треков: {len(result)}")
     return len(result)
 
 
@@ -332,14 +356,24 @@ def report_counts(rows):
 
 
 def cmd_match(env, args):
+    print("Ищу треки в Spotify. Это займёт несколько минут…")
+    counts = match_tracks(env, getattr(args, "redo", False),
+                          lambda n, total: (n % 20 == 0 or n == total) and print(f"  {n}/{total}"))
+    print(f"✓ Найдено точно: {counts['ok']}, нужно проверить: {counts['check']}, "
+          f"нет в Spotify: {counts['not_found']}")
+    print(f"  Полный отчёт: {REPORT_FILE}")
+    return counts
+
+
+def match_tracks(env, redo=False, progress=None):
+    """Ищет выгруженные треки в Spotify и пишет отчёт. Возвращает счётчики статусов."""
     if not LIKES_FILE.exists():
         raise UserError(f"Лайки ещё не выгружены. Сначала выполните: {LAUNCHER} export")
     tracks = json.loads(LIKES_FILE.read_text(encoding="utf-8"))
     cache = json.loads(MATCH_CACHE.read_text(encoding="utf-8")) if MATCH_CACHE.exists() else {}
     sp = spotify_client(env)
-    print(f"Ищу {len(tracks)} треков в Spotify. Это займёт несколько минут…")
     for n, track in enumerate(tracks, 1):
-        if track["yandex_id"] in cache and not getattr(args, "redo", False):
+        if track["yandex_id"] in cache and not redo:
             continue
         cands = search_candidates(sp, track)
         best = None
@@ -363,7 +397,8 @@ def cmd_match(env, args):
         cache[track["yandex_id"]] = row
         if n % 20 == 0 or n == len(tracks):
             MATCH_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
-            print(f"  {n}/{len(tracks)}")
+        if progress:
+            progress(n, len(tracks))
     MATCH_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
     # решения, принятые вручную (review или правка CSV), не затираем при повторном поиске
@@ -382,11 +417,7 @@ def cmd_match(env, args):
         row["status"] = manual.get(track["yandex_id"], row["status"])
         rows.append(row)
     write_report(rows)
-    counts = report_counts(rows)
-    print(f"✓ Найдено точно: {counts['ok']}, нужно проверить: {counts['check']}, "
-          f"нет в Spotify: {counts['not_found']}")
-    print(f"  Полный отчёт: {REPORT_FILE}")
-    return counts
+    return report_counts(rows)
 
 
 def cmd_review(env, args):
@@ -420,18 +451,20 @@ def cmd_review(env, args):
     print("\n✓ Проверка завершена.")
 
 
-def cmd_like(env, args):
-    rows = read_report()
+def read_liked_log():
+    return json.loads(LIKED_LOG.read_text()) if LIKED_LOG.exists() else []
+
+
+def like_plan(sp):
+    """Что осталось лайкнуть: (все треки со статусом ok, уже в «Любимых», осталось добавить)."""
     ids, seen = [], set()
-    for r in rows:
+    for r in read_report():
         sid = r["spotify_id"].strip()
         if r["status"].strip() == "ok" and sid and sid not in seen:
             seen.add(sid)
             ids.append(sid)
     ids.reverse()  # сначала самые старые, чтобы порядок в Spotify совпал с Яндексом
-
-    sp = spotify_client(env)
-    done = set(json.loads(LIKED_LOG.read_text())) if LIKED_LOG.exists() else set()
+    done = set(read_liked_log())
     already = set()
     for i in range(0, len(ids), 40):
         chunk = ids[i:i + 40]
@@ -439,43 +472,69 @@ def cmd_like(env, args):
             if saved:
                 already.add(sid)
     todo = [s for s in ids if s not in already and s not in done]
+    return ids, already, todo
+
+
+def like_tracks(sp, todo, progress=None):
+    done = set(read_liked_log())
+    for n, sid in enumerate(todo, 1):
+        sp.current_user_saved_tracks_add([sid])  # по одному — чтобы сохранить порядок
+        done.add(sid)
+        LIKED_LOG.write_text(json.dumps(sorted(done)))
+        if progress:
+            progress(n, len(todo))
+        time.sleep(0.2)
+    return len(todo)
+
+
+def undo_likes(sp, progress=None):
+    ids = read_liked_log()
+    for i in range(0, len(ids), 40):
+        sp.current_user_saved_tracks_delete(ids[i:i + 40])
+        LIKED_LOG.write_text(json.dumps(ids[i + 40:]))  # при обрыве продолжим с того же места
+        if progress:
+            progress(min(i + 40, len(ids)), len(ids))
+    if LIKED_LOG.exists():
+        LIKED_LOG.unlink()
+    return len(ids)
+
+
+def cmd_like(env, args):
+    sp = spotify_client(env)
+    ids, already, todo = like_plan(sp)
     print(f"К лайку: {len(ids)}, уже в «Любимых»: {len(already)}, осталось добавить: {len(todo)}")
     if getattr(args, "dry_run", False) or not todo:
         return len(todo)
     if getattr(args, "ask", False) and not confirm(f"Поставить лайк {len(todo)} трекам в Spotify?"):
         print("Отменено. Ничего не изменено.")
         return 0
-    for n, sid in enumerate(todo, 1):
-        sp.current_user_saved_tracks_add([sid])  # по одному — чтобы сохранить порядок
-        done.add(sid)
-        if n % 25 == 0 or n == len(todo):
-            LIKED_LOG.write_text(json.dumps(sorted(done)))
-            print(f"  {n}/{len(todo)}")
-        time.sleep(0.2)
+    like_tracks(sp, todo, lambda n, total: (n % 25 == 0 or n == total) and print(f"  {n}/{total}"))
     print(f"✓ Добавлено в «Любимые»: {len(todo)}")
     return len(todo)
 
 
 def cmd_undo(env, args):
-    if not LIKED_LOG.exists():
+    ids = read_liked_log()
+    if not ids:
         raise UserError("Нечего отменять: программа ещё ничего не добавляла.")
-    ids = json.loads(LIKED_LOG.read_text())
     print(f"Будет убрано из «Любимых»: {len(ids)}")
-    if args.dry_run or not ids:
+    if args.dry_run:
         return
     if not confirm("Продолжить?", default=False):
         return
-    sp = spotify_client(env)
-    for i in range(0, len(ids), 40):
-        sp.current_user_saved_tracks_delete(ids[i:i + 40])
-        print(f"  {min(i + 40, len(ids))}/{len(ids)}")
-    LIKED_LOG.unlink()
+    undo_likes(spotify_client(env), lambda n, total: print(f"  {n}/{total}"))
     print("✓ Готово.")
+
+
+def cmd_web(env, args):
+    import webui
+    webui.serve(open_browser=not args.no_browser)
 
 
 def cmd_wizard(env, args):
     print("yandex-to-spotify — перенос лайков из Яндекс.Музыки в Spotify\n"
-          "Программа проведёт вас по шагам и ничего не изменит без вашего подтверждения.")
+          "Программа проведёт вас по шагам и ничего не изменит без вашего подтверждения.\n"
+          f"Удобнее в браузере? Запустите веб-интерфейс: {LAUNCHER} web")
     if not all(env.get(k) for k in ENV_KEYS[:3]):
         cmd_setup(env, args)
     else:
@@ -511,7 +570,26 @@ def cmd_wizard(env, args):
           "Если программа помогла — поддержите автора: https://boosty.to/iamaburu/donate")
 
 
+def friendly_error(e):
+    """Понятный текст для типичных ошибок сети, Яндекса и Spotify, иначе None."""
+    import requests
+    import spotipy
+    if isinstance(e, UserError):
+        return str(e)
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return "Нет связи с сервером. Проверьте интернет (и VPN, если он включён) и повторите."
+    if isinstance(e, spotipy.oauth2.SpotifyOauthError):
+        return ("Spotify не принял ключи приложения. Проверьте Client ID / Client secret "
+                f"и Redirect URI ({REDIRECT_URI}).")
+    if isinstance(e, spotipy.SpotifyException) and e.http_status == 403:
+        return ("Spotify отказал в доступе (403). Частая причина — аккаунт не добавлен в "
+                "User Management вашего приложения на developer.spotify.com. Подробнее — раздел "
+                "«Частые проблемы» в инструкции.")
+    return None
+
+
 COMMANDS = {
+    "web": (cmd_web, "открыть веб-интерфейс в браузере"),
     "setup": (cmd_setup, "ввести токены Яндекса и Spotify"),
     "check": (cmd_check, "проверить доступ к обоим сервисам"),
     "export": (cmd_export, "выгрузить лайки из Яндекс.Музыки"),
@@ -533,28 +611,22 @@ def main():
             sp_.add_argument("--redo", action="store_true", help="заново искать уже найденные треки")
         if name in ("like", "undo"):
             sp_.add_argument("--dry-run", action="store_true", help="только посчитать, ничего не менять")
+        if name == "web":
+            sp_.add_argument("--no-browser", action="store_true", help="не открывать браузер автоматически")
     args = p.parse_args()
     env = load_env()
     func = COMMANDS[args.cmd][0] if args.cmd else cmd_wizard
     try:
         func(env, args)
-    except UserError as e:
-        sys.exit(f"\n✗ {e}")
     except KeyboardInterrupt:
         sys.exit("\nПрервано. Запустите снова — программа продолжит с того же места.")
     except Exception as e:
-        import requests
-        import spotipy
-        if isinstance(e, requests.exceptions.ConnectionError):
-            sys.exit("\n✗ Нет связи с сервером. Проверьте интернет (и VPN, если он включён) и запустите снова.")
-        if isinstance(e, spotipy.oauth2.SpotifyOauthError):
-            sys.exit("\n✗ Spotify не принял ключи приложения. Проверьте Client ID / Client secret "
-                     f"и Redirect URI ({REDIRECT_URI}) и запустите: {LAUNCHER} setup")
-        if isinstance(e, spotipy.SpotifyException) and e.http_status == 403:
-            sys.exit("\n✗ Spotify отказал в доступе (403). Частая причина — аккаунт не добавлен в "
-                     "User Management вашего приложения на developer.spotify.com. Подробнее — раздел "
-                     "«Частые проблемы» в README.")
-        raise
+        message = friendly_error(e)
+        if message is None:
+            raise
+        if "ключи приложения" in message:
+            message += f" Команда: {LAUNCHER} setup"
+        sys.exit(f"\n✗ {message}")
 
 
 if __name__ == "__main__":

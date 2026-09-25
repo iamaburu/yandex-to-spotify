@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>yandex-to-spotify</title>
+<style>
+:root {
+  --bg: #f4f6f5; --surface: #ffffff; --surface-2: #eef1f0; --text: #1a1f1d; --muted: #63706b;
+  --border: #dbe1de; --accent: #178a4c; --accent-text: #ffffff; --accent-soft: #e3f4ea;
+  --danger: #c93a30; --danger-soft: #fcebe9; --danger-btn: #c62f27;
+  --ok: #178a4c; --ok-soft: #e3f4ea; --warn: #8a5a00; --warn-soft: #fff5dc;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131715; --surface: #1c211f; --surface-2: #252b28; --text: #e7ebe9; --muted: #98a39e;
+    --border: #323a36; --accent: #3cbf73; --accent-text: #0d1a12; --accent-soft: #1b3326;
+    --danger: #f06a61; --danger-soft: #3a2220; --ok: #4cc27f; --ok-soft: #1c3326;
+    --warn: #f0c060; --warn-soft: #3a3020; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+[hidden] { display: none !important; }
+a { color: var(--accent); }
+header.top { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); }
+header.top .in { max-width: 900px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+header.top h1 { font-size: 17px; margin: 0; flex: 1; }
+main { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+  margin-bottom: 16px; box-shadow: var(--shadow); }
+.card h2 { font-size: 18px; margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+ol.steps { padding-left: 20px; margin: 8px 0 12px; }
+ol.steps li { margin: 4px 0; }
+label.field { display: block; margin: 12px 0; }
+label.field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+input[type=text], input[type=search], textarea {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text); font: inherit; }
+textarea { resize: vertical; min-height: 64px; font-size: 13px; }
+input:focus-visible, button:focus-visible, textarea:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button, a.btn { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); padding: 8px 14px; text-decoration: none; display: inline-block; }
+button:hover, a.btn:hover { background: var(--surface-2); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary, a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.primary:hover, a.btn.primary:hover { filter: brightness(1.07); }
+button.danger { background: var(--danger-btn); border-color: var(--danger-btn); color: #fff; }
+button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; }
+button.link:hover { text-decoration: underline; background: none; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.alert { border-radius: 8px; padding: 10px 12px; margin: 12px 0 0; font-size: 14px; }
+.alert.error { background: var(--danger-soft); color: var(--danger); }
+.alert.warn { background: var(--warn-soft); color: var(--warn); }
+.alert.ok { background: var(--ok-soft); color: var(--ok); }
+code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+.conn { display: flex; align-items: center; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
+.conn + .conn { border-top: 1px solid var(--border); }
+.conn .who { flex: 1; min-width: 200px; }
+.conn .who b { display: block; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+.dot.on { background: var(--ok); }
+.dot.bad { background: var(--danger); }
+.subform { background: var(--surface-2); border-radius: 10px; padding: 14px 16px; margin: 4px 0 12px; }
+
+.step { display: flex; gap: 14px; padding: 14px 0; align-items: flex-start; }
+.step + .step { border-top: 1px solid var(--border); }
+.step .num { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; }
+.step .num.done { background: var(--accent-soft); color: var(--accent); }
+.step .body { flex: 1; min-width: 0; }
+.step .body b { display: block; }
+.step .side { flex: none; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+label.check { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tabs button { font-size: 14px; padding: 6px 12px; border-radius: 20px; }
+.tabs button[aria-selected=true] { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.count { display: inline-block; min-width: 22px; text-align: center; font-size: 12px; font-weight: 600;
+  background: var(--surface-2); border-radius: 10px; padding: 0 7px; margin-left: 4px; }
+ul.tracks { list-style: none; margin: 12px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; max-height: 620px; overflow: auto; }
+ul.tracks li { display: flex; gap: 12px; padding: 10px 14px; align-items: center; }
+ul.tracks li + li { border-top: 1px solid var(--border); }
+ul.tracks .pair { flex: 1; min-width: 0; font-size: 14px; }
+ul.tracks .pair div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ul.tracks .src { color: var(--muted); font-size: 12px; margin-right: 6px; display: inline-block; width: 58px; }
+.badge { font-size: 12px; color: var(--warn); background: var(--warn-soft); border-radius: 6px; padding: 0 6px; margin-left: 6px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; flex: none; }
+.seg button { border: none; border-radius: 0; padding: 4px 10px; font-size: 13px; background: var(--surface); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed=true].yes { background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+.seg button[aria-pressed=true].no { background: var(--danger-soft); color: var(--danger); font-weight: 600; }
+.empty { text-align: center; padding: 24px 12px; }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center;
+  justify-content: center; padding: 16px; z-index: 10; }
+.modal { background: var(--surface); border-radius: 14px; width: 100%; max-width: 520px; max-height: 88vh; overflow: auto; padding: 22px; }
+.modal h2 { margin: 0 0 12px; font-size: 18px; }
+.progress { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; margin: 14px 0 6px; }
+.progress > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.progress.indeterminate > div { width: 30%; animation: slide 1.2s infinite ease-in-out; }
+@keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+@media (max-width: 600px) {
+  .step { flex-wrap: wrap; }
+  .step .side { width: 100%; justify-content: flex-start; padding-left: 42px; }
+  ul.tracks li { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <h1>yandex-to-spotify</h1>
+  <button id="btn-quit" title="Остановить программу">Завершить</button>
+</div></header>
+
+<main>
+  <div class="card" id="loading"><p class="muted">Проверяю подключения…</p></div>
+  <div class="alert error" id="main-error" hidden style="margin:0 0 16px"></div>
+  <div class="alert ok" id="main-ok" hidden style="margin:0 0 16px"></div>
+
+  <div id="app" hidden>
+    <!-- подключения -->
+    <section class="card">
+      <h2>Подключения</h2>
+
+      <div class="conn">
+        <div class="who"><b>Яндекс.Музыка</b><span class="small" id="ya-status"></span></div>
+        <button id="ya-edit">Подключить</button>
+      </div>
+      <form class="subform" id="form-yandex" hidden>
+        <ol class="steps">
+          <li><a href="#" id="ya-open" target="_blank" rel="noopener noreferrer">Откройте страницу Яндекса</a>, войдите и нажмите «Разрешить».</li>
+          <li>Скопируйте из адресной строки <b>весь адрес</b> (он начинается с <code>https://music.yandex.ru/#access_token=</code>) и вставьте ниже. Лишнее программа отрежет сама.</li>
+        </ol>
+        <p class="muted small">Если адрес успел смениться: откройте инструменты разработчика (⌥⌘I, на Windows F12) → вкладка Network → включите «Preserve log» и повторите.</p>
+        <label class="field"><span>Адрес страницы или токен</span><textarea name="token" spellcheck="false" required></textarea></label>
+        <div class="row-actions"><button class="primary" type="submit">Проверить и сохранить</button><button type="button" data-cancel>Отмена</button></div>
+        <div class="alert error" hidden></div>
+      </form>
+
+      <div class="conn">
+        <div class="who"><b>Spotify</b><span class="small" id="sp-status"></span></div>
+        <button id="sp-keys-edit">Ключи приложения</button>
+        <button class="primary" id="sp-login" hidden>Войти в Spotify</button>
+        <button class="link" id="sp-logout" hidden>Выйти</button>
+      </div>
+      <form class="subform" id="form-spotify" hidden>
+        <p>Spotify разрешает программам ставить лайки только через бесплатное «приложение разработчика». Его создание занимает пару минут:</p>
+        <ol class="steps">
+          <li>Откройте <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer">developer.spotify.com/dashboard</a>, войдите и нажмите <b>Create app</b>.</li>
+          <li><b>App name</b> и <b>App description</b> — любые, например yandex-to-spotify.</li>
+          <li><b>Redirect URIs</b> — вставьте ровно <code id="redirect-uri"></code> <button type="button" class="link" id="copy-uri">скопировать</button> и нажмите <b>Add</b>.</li>
+          <li>В «Which API/SDKs are you planning to use?» отметьте <b>Web API</b>, согласитесь с условиями и нажмите <b>Save</b>.</li>
+          <li>Откройте <b>Settings</b>: там <b>Client ID</b> и (по кнопке <i>View client secret</i>) <b>Client secret</b>.</li>
+        </ol>
+        <label class="field"><span>Client ID</span><input type="text" name="client_id" autocomplete="off" spellcheck="false" required></label>
+        <label class="field"><span>Client secret</span><input type="text" name="client_secret" autocomplete="off" spellcheck="false" required></label>
+        <div class="row-actions"><button class="primary" type="submit">Сохранить</button><button type="button" data-cancel>Отмена</button></div>
+        <div class="alert error" hidden></div>
+      </form>
+    </section>
+
+    <!-- шаги переноса -->
+    <section class="card" id="steps-card">
+      <h2>Перенос</h2>
+      <div class="step">
+        <div class="num" id="n1">1</div>
+        <div class="body"><b>Выгрузить лайки из Яндекс.Музыки</b><span class="muted small" id="s1"></span></div>
+        <div class="side"><button id="btn-export">Выгрузить</button></div>
+      </div>
+      <div class="step">
+        <div class="num" id="n2">2</div>
+        <div class="body"><b>Найти треки в Spotify</b><span class="muted small" id="s2">Ничего не лайкает — только ищет. Сомнительные совпадения вы проверите ниже.</span></div>
+        <div class="side">
+          <label class="check" id="redo-wrap" hidden><input type="checkbox" id="redo"> искать заново все</label>
+          <button id="btn-match">Найти</button>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num" id="n3">3</div>
+        <div class="body"><b>Поставить лайки в Spotify</b><span class="muted small" id="s3">Треки из вкладки «Найдены» попадут в «Любимые треки» в том же порядке, что и в Яндексе. Уже добавленные пропускаются.</span></div>
+        <div class="side"><button class="primary" id="btn-like">Поставить лайки…</button></div>
+      </div>
+    </section>
+
+    <!-- результаты -->
+    <section class="card" id="report-card" hidden>
+      <h2>Результаты поиска</h2>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <input type="search" id="search" placeholder="Найти по исполнителю или названию…" aria-label="Поиск">
+      <p class="muted small" id="tab-hint"></p>
+      <div id="tracks"></div>
+    </section>
+
+    <section class="card" id="undo-card" hidden>
+      <h2>Отмена</h2>
+      <p class="muted" id="undo-text"></p>
+      <button id="btn-undo">Убрать всё, что добавила программа…</button>
+    </section>
+
+    <p class="muted small" style="text-align:center">
+      Если программа помогла, поддержите автора на <a href="https://boosty.to/iamaburu/donate" target="_blank" rel="noopener noreferrer">Boosty</a>.
+      <span id="version"></span>
+    </p>
+  </div>
+</main>
+
+<div class="modal-bg" id="modal" hidden><div class="modal" role="dialog" aria-modal="true" id="modal-body"></div></div>
+
+<script>
+const TOKEN = "__TOKEN__";
+const YANDEX_URL = "https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d";
+const TABS = [
+  ["check", "Сомнительные", "Проверьте: это та же песня? «Та же» — трек получит лайк, «Не та» — будет пропущен."],
+  ["ok", "Найдены", "Эти треки получат лайк. Если совпадение неверное, нажмите «Не та»."],
+  ["not_found", "Не найдены", "Этих треков нет в Spotify или они называются совсем иначе. Можно поискать вручную по ссылке."],
+  ["skip", "Пропущены", "Вы отметили их как неверные совпадения. Лайк им не ставится."],
+];
+let S = null, REPORT = null, tab = null, lastJob = null, polling = false, openForm = null;
+
+const $ = (sel) => document.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+
+async function api(method, path, body) {
+  let resp;
+  try {
+    resp = await fetch(path, {method, headers: {"X-Token": TOKEN, "Content-Type": "application/json"},
+                              body: body ? JSON.stringify(body) : undefined});
+  } catch (e) {
+    throw new Error("Программа не отвечает. Возможно, окно терминала закрыто — запустите её снова.");
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || `Ошибка ${resp.status}`);
+  return data;
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+const tracks = (n) => `${n} ${plural(n, "трек", "трека", "треков")}`;
+
+function flash(kind, msg) {
+  const box = kind === "error" ? $("#main-error") : $("#main-ok");
+  box.textContent = msg || "";
+  box.hidden = !msg;
+  if (msg) window.scrollTo({top: 0, behavior: "smooth"});
+}
+
+// ---------- состояние ----------
+
+async function refresh() {
+  try {
+    S = await api("GET", "/api/state");
+  } catch (e) {
+    $("#loading").innerHTML = `<p class="alert error">${esc(e.message)}</p>`;
+    return;
+  }
+  $("#loading").hidden = true;
+  $("#app").hidden = false;
+  render();
+  handleJob();
+}
+
+function render() {
+  const ya = S.yandex, sp = S.spotify, busy = !!(S.job && S.job.running);
+  $("#ya-status").innerHTML = ya.connected ? `<span class="dot on"></span>подключено: ${esc(ya.name)}`
+    : ya.error ? `<span class="dot bad"></span>${esc(ya.error)}` : `<span class="dot"></span>не подключено`;
+  $("#ya-edit").textContent = ya.connected ? "Изменить" : "Подключить";
+  if (!ya.connected && !ya.error && openForm === null) openForm = "yandex";
+
+  $("#sp-status").innerHTML = sp.connected ? `<span class="dot on"></span>подключено: ${esc(sp.name)}`
+    : sp.error && sp.keys ? `<span class="dot bad"></span>${esc(sp.error)}`
+    : sp.keys ? `<span class="dot"></span>ключи есть, нужно войти` : `<span class="dot"></span>нужны ключи приложения`;
+  $("#sp-login").hidden = !sp.keys || sp.connected;
+  $("#sp-logout").hidden = !sp.connected;
+  $("#redirect-uri").textContent = sp.redirect_uri;
+  if (ya.connected && !sp.keys && openForm === null) openForm = "spotify";
+  $("#form-yandex").hidden = openForm !== "yandex";
+  $("#form-spotify").hidden = openForm !== "spotify";
+
+  const ready = ya.connected && sp.connected;
+  $("#s1").textContent = S.likes ? ` Выгружено ${tracks(S.likes.count)} (${S.likes.date}).` : "";
+  $("#n1").className = "num" + (S.likes ? " done" : "");
+  $("#btn-export").textContent = S.likes ? "Выгрузить заново" : "Выгрузить";
+  $("#btn-export").disabled = busy || !ya.connected;
+
+  const r = S.report;
+  $("#n2").className = "num" + (r ? " done" : "");
+  $("#s2").textContent = r ? ` Найдено: ${r.ok}, сомнительных: ${r.check}, нет в Spotify: ${r.not_found}, пропущено: ${r.skip}.`
+    : " Ничего не лайкает — только ищет. Сомнительные совпадения вы проверите ниже.";
+  $("#redo-wrap").hidden = !r;
+  $("#btn-match").disabled = busy || !S.likes || !sp.connected;
+
+  $("#btn-like").disabled = busy || !r || !r.ok || !sp.connected;
+  $("#n3").className = "num" + (S.liked_by_program ? " done" : "");
+
+  $("#report-card").hidden = !r;
+  if (r) {
+    if (tab === null) tab = r.check ? "check" : "ok";
+    renderTabs();
+    if (!REPORT) loadReport();
+  }
+  $("#undo-card").hidden = !S.liked_by_program;
+  $("#undo-text").textContent = `Программа добавила в «Любимые треки» ${tracks(S.liked_by_program)}. Их можно убрать одной кнопкой — остальные ваши лайки не пострадают.`;
+  $("#btn-undo").disabled = busy || !sp.connected;
+  $("#version").textContent = `Версия ${S.version}.`;
+  if (!ready && !busy) {
+    $("#steps-card").style.opacity = ".6";
+  } else {
+    $("#steps-card").style.opacity = "";
+  }
+}
+
+// ---------- подключения ----------
+
+$("#ya-open").href = YANDEX_URL;
+$("#ya-edit").addEventListener("click", () => { openForm = openForm === "yandex" ? "" : "yandex"; render(); });
+$("#sp-keys-edit").addEventListener("click", () => { openForm = openForm === "spotify" ? "" : "spotify"; render(); });
+document.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", () => { openForm = ""; render(); }));
+$("#copy-uri").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(S.spotify.redirect_uri); $("#copy-uri").textContent = "скопировано ✓"; }
+  catch (e) { $("#copy-uri").textContent = "выделите и скопируйте вручную"; }
+});
+
+function bindForm(id, path, fields, after) {
+  const form = $(id);
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const btn = form.querySelector("button[type=submit]");
+    const errBox = form.querySelector(".alert.error");
+    const body = {};
+    for (const f of fields) body[f] = form.elements[f].value;
+    btn.disabled = true;
+    errBox.hidden = true;
+    try {
+      await api("POST", path, body);
+      form.reset();
+      openForm = "";
+      if (after) after();
+      await refresh();
+    } catch (e) {
+      errBox.textContent = e.message;
+      errBox.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+bindForm("#form-yandex", "/api/yandex", ["token"]);
+bindForm("#form-spotify", "/api/spotify/keys", ["client_id", "client_secret"],
+         () => flash("ok", "Ключи сохранены. Теперь нажмите «Войти в Spotify»."));
+
+$("#sp-login").addEventListener("click", async () => {
+  try {
+    const {url} = await api("POST", "/api/spotify/login");
+    location.href = url;
+  } catch (e) { flash("error", e.message); }
+});
+$("#sp-logout").addEventListener("click", async () => {
+  await api("POST", "/api/spotify/logout").catch((e) => flash("error", e.message));
+  refresh();
+});
+
+// ответ после входа в Spotify
+(function spotifyReturn() {
+  const params = new URLSearchParams(location.search);
+  const result = params.get("spotify");
+  if (!result) return;
+  history.replaceState(null, "", `/?t=${encodeURIComponent(TOKEN)}`);
+  const messages = {
+    ok: ["ok", "Spotify подключён."],
+    denied: ["error", "Вход в Spotify отменён. Нажмите «Войти в Spotify», чтобы попробовать снова."],
+    state: ["error", "Ответ Spotify не прошёл проверку. Нажмите «Войти в Spotify» ещё раз."],
+    error: ["error", "Spotify не принял вход. Проверьте Client ID, Client secret и Redirect URI в настройках приложения."],
+  };
+  const [kind, msg] = messages[result] || messages.error;
+  flash(kind, msg);
+})();
+
+// ---------- результаты поиска ----------
+
+async function loadReport() {
+  REPORT = (await api("GET", "/api/report")).rows;
+  renderTracks();
+}
+
+function renderTabs() {
+  const counts = S.report;
+  $("#tabs").innerHTML = TABS.map(([key, label]) =>
+    `<button role="tab" data-tab="${key}" aria-selected="${tab === key}">${label}<span class="count">${counts[key] || 0}</span></button>`).join("");
+  const t = TABS.find((x) => x[0] === tab);
+  $("#tab-hint").textContent = t ? t[2] : "";
+}
+
+function trackHtml(r) {
+  const ya = `${esc(r.yandex_artist)} — ${esc(r.yandex_title)}`;
+  if (!r.spotify_id) {
+    const q = encodeURIComponent(`${r.yandex_artist} ${r.yandex_title}`);
+    return `<li><div class="pair"><div><span class="src">Яндекс</span>${ya}</div></div>
+      <a class="small" href="https://open.spotify.com/search/${q}" target="_blank" rel="noopener noreferrer">Искать в Spotify ↗</a></li>`;
+  }
+  const diff = r.duration_diff_s && Number(r.duration_diff_s) > 3 ? `<span class="badge">±${esc(r.duration_diff_s)} с</span>` : "";
+  const listen = r.spotify_url ? `<a class="small" href="${esc(r.spotify_url)}" target="_blank" rel="noopener noreferrer">Послушать ↗</a>` : "";
+  return `<li><div class="pair"><div><span class="src">Яндекс</span>${ya}</div>
+    <div><span class="src">Spotify</span>${esc(r.spotify_artist)} — ${esc(r.spotify_title)}${diff}</div></div>
+    ${listen}
+    <div class="seg" role="group" aria-label="Та же песня?">
+      <button type="button" class="yes" data-id="${esc(r.yandex_id)}" data-set="ok" aria-pressed="${r.status === "ok"}">Та же</button>
+      <button type="button" class="no" data-id="${esc(r.yandex_id)}" data-set="skip" aria-pressed="${r.status === "skip"}">Не та</button>
+    </div></li>`;
+}
+
+function renderTracks() {
+  if (!REPORT) return;
+  const q = $("#search").value.trim().toLowerCase();
+  const rows = REPORT.filter((r) => r.status === tab && (!q ||
+    `${r.yandex_artist} ${r.yandex_title} ${r.spotify_artist} ${r.spotify_title}`.toLowerCase().includes(q)));
+  if (!rows.length) {
+    $("#tracks").innerHTML = `<div class="empty muted">${q ? "Ничего не найдено." : tab === "check" ? "Сомнительных совпадений нет ✓" : "Здесь пусто."}</div>`;
+    return;
+  }
+  const shown = rows.slice(0, 500);
+  $("#tracks").innerHTML = `<ul class="tracks">${shown.map(trackHtml).join("")}</ul>` +
+    (rows.length > shown.length ? `<p class="muted small">Показаны первые 500 из ${rows.length}. Уточните поиск.</p>` : "");
+}
+
+$("#tabs").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-tab]");
+  if (!b) return;
+  tab = b.dataset.tab;
+  renderTabs();
+  renderTracks();
+});
+$("#search").addEventListener("input", renderTracks);
+$("#tracks").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button[data-set]");
+  if (!b) return;
+  const row = REPORT.find((r) => r.yandex_id === b.dataset.id);
+  row.status = b.dataset.set;
+  b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  try {
+    await api("POST", "/api/report", {changes: {[row.yandex_id]: row.status}});
+    S = await api("GET", "/api/state");
+    render();
+  } catch (e) {
+    flash("error", e.message);
+    REPORT = null; loadReport();
+  }
+});
+
+// ---------- модальные окна и долгие операции ----------
+
+function openModal(html) {
+  $("#modal-body").innerHTML = html;
+  $("#modal").hidden = false;
+  const first = $("#modal-body").querySelector("button");
+  if (first) first.focus();
+}
+function closeModal() { $("#modal").hidden = true; }
+$("#modal").addEventListener("click", (ev) => { if (ev.target.dataset.close !== undefined) closeModal(); });
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !$("#modal").hidden && $("#modal-body [data-close]")) closeModal();
+});
+
+const JOB_TITLES = {export: "Выгружаю лайки из Яндекс.Музыки…", match: "Ищу треки в Spotify…",
+                    like_check: "Проверяю, что уже есть в «Любимых»…", like: "Ставлю лайки…", undo: "Убираю лайки…"};
+
+async function startJob(path, body) {
+  flash("error", ""); flash("ok", "");
+  try {
+    await api("POST", path, body || {});
+  } catch (e) {
+    closeModal();
+    return flash("error", e.message);
+  }
+  await refresh();
+}
+
+function handleJob() {
+  const job = S.job;
+  if (!job) return;
+  if (job.running) {
+    const pct = job.total ? Math.round(job.n / job.total * 100) : null;
+    const hint = job.kind === "match" ? "Поиск занимает несколько минут: около секунды на трек. Если прервать, программа продолжит с того же места." : "";
+    const html = `<h2>${JOB_TITLES[job.kind]}</h2>
+      <div class="progress${pct === null ? " indeterminate" : ""}"><div style="${pct === null ? "" : `width:${pct}%`}"></div></div>
+      <p class="muted small">${job.total ? `${job.n} из ${job.total}` : ""}</p>
+      <p class="muted small">${hint} Не закрывайте эту страницу и окно терминала.</p>`;
+    if ($("#modal").hidden || !$("#modal-body .progress")) openModal(html); else $("#modal-body").innerHTML = html;
+    lastJob = job;
+    if (!polling) { polling = true; setTimeout(() => { polling = false; refresh(); }, 700); }
+    return;
+  }
+  if (lastJob && lastJob.running) {
+    lastJob = job;
+    closeModal();
+    finishJob(job);
+  }
+}
+
+function finishJob(job) {
+  if (job.error) return flash("error", job.error);
+  const r = job.result;
+  REPORT = null;
+  if (S.report) loadReport();
+  if (job.kind === "export") flash("ok", `Выгружено ${tracks(r.count)}. Теперь найдите их в Spotify (шаг 2).`);
+  if (job.kind === "match") {
+    tab = r.check ? "check" : "ok";
+    flash("ok", `Найдено точно: ${r.ok}, нужно проверить: ${r.check}, нет в Spotify: ${r.not_found}.` +
+      (r.check ? " Проверьте сомнительные совпадения ниже, затем поставьте лайки (шаг 3)." : " Можно ставить лайки (шаг 3)."));
+  }
+  if (job.kind === "like_check") {
+    if (!r.todo) return flash("ok", `Все ${tracks(r.total)} уже в «Любимых треках». Добавлять нечего.`);
+    openModal(`<h2>Поставить лайки?</h2>
+      <p>Треков к переносу: <b>${r.total}</b><br>Уже в «Любимых треках»: <b>${r.already}</b><br>Будет добавлено: <b>${r.todo}</b></p>
+      <p class="muted small">Лайки ставятся по одному, чтобы сохранить порядок: займёт около ${Math.max(1, Math.ceil(r.todo * 0.4 / 60))} мин.
+      Всё добавленное можно будет убрать кнопкой «Отмена».</p>
+      <div class="row-actions"><button data-close>Отмена</button><button class="primary" id="confirm-like">Поставить ${r.todo} лайков</button></div>`);
+    $("#confirm-like").addEventListener("click", () => startJob("/api/like"));
+  }
+  if (job.kind === "like") flash("ok", `Готово! Добавлено в «Любимые треки»: ${r.count}. Если программа помогла — поддержите автора на Boosty (ссылка внизу).`);
+  if (job.kind === "undo") flash("ok", `Убрано из «Любимых треков»: ${r.count}.`);
+}
+
+$("#btn-export").addEventListener("click", () => startJob("/api/export"));
+$("#btn-match").addEventListener("click", () => startJob("/api/match", {redo: $("#redo").checked}));
+$("#btn-like").addEventListener("click", () => startJob("/api/like/check"));
+$("#btn-undo").addEventListener("click", () => {
+  openModal(`<h2>Убрать добавленное?</h2>
+    <p>Из «Любимых треков» будут убраны ${tracks(S.liked_by_program)}, которые добавила программа. Остальные ваши лайки не пострадают.</p>
+    <div class="row-actions"><button data-close>Отмена</button><button class="danger" id="confirm-undo">Убрать</button></div>`);
+  $("#confirm-undo").addEventListener("click", () => startJob("/api/undo"));
+});
+
+$("#btn-quit").addEventListener("click", async () => {
+  try { await api("POST", "/api/quit"); } catch (e) { /* сервер уже остановлен */ }
+  document.body.innerHTML = `<main><div class="card empty"><h2>Программа завершена</h2>
+    <p class="muted">Эту вкладку можно закрыть. Чтобы запустить снова — дважды кликните start-web.command (Windows: start-web.bat).</p></div></main>`;
+});
+
+refresh();
+</script>
+</body>
+</html>

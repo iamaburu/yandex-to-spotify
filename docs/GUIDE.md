@@ -27,11 +27,15 @@ You need **Python 3.9+**:
 
 ## 2. Run
 
-| System | What to do |
-|---|---|
-| macOS | Double-click `start.command` |
-| Windows | Double-click `start.bat` |
-| Linux | Run `./start.sh` in a terminal |
+There are two ways to work, pick whichever you like:
+
+| System | In the browser | In the terminal |
+|---|---|---|
+| macOS | Double-click `start-web.command` | Double-click `start.command` |
+| Windows | Double-click `start-web.bat` | Double-click `start.bat` |
+| Linux | `./start-web.sh` | `./start.sh` |
+
+**In the browser** the program opens the page for you. Keep the terminal window that appears next to it open while you work. When you are done, click **Завершить** (Quit). Steps 3 and 4 below look the same in the browser: the page has forms for the Yandex token and the Spotify keys, then a **Войти в Spotify** (Log in to Spotify) button.
 
 **macOS may block the first launch** ("cannot be verified" / "unidentified developer"):
 1. Open **System Settings → Privacy & Security**.
@@ -71,6 +75,10 @@ Spotify only lets programs like this one like tracks through a free "developer a
 
 ## 5. Transfer
 
+**In the browser**, click **Выгрузить** (Export), **Найти** (Find) and **Поставить лайки…** (Like) in the «Перенос» card one after another. Progress is shown while each step runs. Search results are split into tabs: doubtful, found, not found and skipped. For each Yandex ↔ Spotify pair click **Та же** (same song) or **Не та** (different song); **Послушать** opens the track in Spotify. Before liking, the program shows how many tracks it will add and asks you to confirm.
+
+**In the terminal**, the wizard does the rest:
+
 1. **Export from Yandex** takes a few seconds.
 2. **Search on Spotify** takes about 5 minutes per 500 tracks. Every match is checked by title, artist and duration and gets one of three results:
    - *точно* — a confident match;
@@ -98,6 +106,7 @@ Tracks that usually are not found:
 ## 7. Undo
 
 The program remembers which tracks it added. To remove them from Liked Songs:
+- **in the browser:** click the button in the «Отмена» (Undo) card;
 - **macOS / Linux:** run `./start.command undo`;
 - **Windows:** run `start.bat undo`.
 
@@ -134,7 +143,14 @@ Install Python from python.org with **Add python.exe to PATH** ticked.
 
 Still stuck? [Open an issue](https://github.com/iamaburu/yandex-to-spotify/issues/new/choose). **Never share your tokens or your `.env` file.**
 
+**The page says "Программа не отвечает" (the program is not responding)**
+You closed the terminal window or clicked Quit. Start `start-web.command` again.
+
+**"Порт 8888 занят" (port 8888 is busy)**
+The program is already running in another window (for example, the terminal wizard). Close it and start the web interface again.
+
 ## 9. Security
+- The **web interface** runs only on your computer (address 127.0.0.1) and cannot be reached from other devices. Every launch creates a new secret access key, so other websites open in your browser cannot control the program.
 
 - Your Yandex token and Spotify keys stay on your computer in the `.env` file. They are sent only to Yandex and Spotify.
 - Never share `.env`: the token gives access to your Yandex account.
